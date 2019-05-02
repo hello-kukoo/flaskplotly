@@ -1,4 +1,4 @@
-from flask import Flask, render_template
+from flask import Flask, Response, make_response, render_template, request
 import json
 import plotly
 import plotly.plotly as py
@@ -10,6 +10,12 @@ import pandas as pd
 import urllib
 
 app = Flask(__name__)
+
+# Import dataset
+data = pd.read_csv('data/gapminder.csv')
+data = data[(data.Year >= 1950)]
+country_names = sorted(list(set(data.Country)))
+attribute_names = data.columns[2:-1].values.tolist()
 
 
 @app.route('/')
@@ -416,3 +422,66 @@ def sunburst():
     return render_template('graph.html',
                            graphJSON=graphJSON,
                            layoutJSON=layoutJSON)
+
+# Create the main plot
+def create_gapminder_figure(first_country='China',
+                  second_country='Singapore',
+                  selected_attribute='income'):
+
+    # filter datasets according to country
+    first_country_data = data[(data.Country == first_country)]
+    second_country_data = data[(data.Country == second_country)]
+
+    first_country_data_attribute = list(first_country_data[selected_attribute])
+    second_country_data_attribute = list(second_country_data[selected_attribute])
+
+    years = list(first_country_data["Year"])
+
+    # Create traces
+    trace0 = go.Scatter(
+        x = years,
+        y = first_country_data_attribute,
+        mode = 'lines',
+        name = first_country
+    )
+    trace1 = go.Scatter(
+        x = years,
+        y = second_country_data_attribute,
+        mode = 'lines',
+        name = second_country
+    )
+    figure = [trace0, trace1]
+
+    layout = go.Layout(
+        title="Gapminder",
+        width=1500,
+        height=700,
+    )
+
+    return figure, layout
+
+
+@app.route('/gapminder', methods=['GET', 'POST'])
+def gapminder_plot():
+    first_country = "China"
+    second_country = "Singapore"
+    selected_attribute = "income"
+    if request.method == 'POST':
+        first_country = request.form["first_country"]
+        second_country = request.form["second_country"]
+        selected_attribute = request.form["selected_attribute"]
+
+    # Create the plot
+    figure, layout = create_gapminder_figure(first_country, second_country, selected_attribute)
+    graphJSON = json.dumps(figure, cls=plotly.utils.PlotlyJSONEncoder)
+    layoutJSON = json.dumps(layout, cls=plotly.utils.PlotlyJSONEncoder)
+
+    return render_template("gapminder.html",
+                           graphJSON=graphJSON,
+                           layoutJSON=layoutJSON,
+                           country_names=country_names,
+                           attribute_names=attribute_names,
+                           selected_attribute=selected_attribute,
+                           first_country=first_country,
+                           second_country=second_country)
+

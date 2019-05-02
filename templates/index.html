@@ -2,14 +2,11 @@
 <html>
 
 <head>
-    <style type="text/css">
-        .header{
-            text-align: center;
-            background-color: rgb(136, 185, 229);
-            height: 70px;
-            line-height: 70px;
-        }
-    </style>
+    <link rel="stylesheet" href="https://unpkg.com/purecss@1.0.0/build/pure-min.css"
+        integrity="sha384-nn4HPE8lTHyVtfCBi5yW9d20FjT8BJwUXyWZT9InLYax14RDjBj46LmSztkmNP9w"
+        crossorigin="anonymous">
+    <link href="{{ url_for('static', filename='style.css') }}"
+        rel="stylesheet" type="text/css" >
 </head>
 
 <body>
@@ -28,6 +25,7 @@
         <li><a href="/sankey">Sankey Diagram</a></li>
         <li><a href="/barandline">Bar and Lines</a></li>
         <li><a href="/sunburst">Sunburst Diagram</a></li>
+        <li><a href="/gapminder">Gapminder Form</a></li>
     </ul>
 
 </body>

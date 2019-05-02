@@ -1,0 +1,52 @@
+{% extends "template.html" %}
+
+{% block body %}
+    <div class="pure-g">
+        <form action = "/gapminder" method = "POST" class="pure-form pure-form-aligned">
+            <fieldset>
+            <div class="pure-control-group">
+                <select name="first_country">
+                {% for country in country_names %}
+                    {% if first_country == country %}
+                        <option selected value="{{ country }}">{{ country }}</option>
+                    {% else %}
+                        <option value="{{ country }}">{{ country }}</option>
+                    {% endif %}
+                {% endfor %}
+                </select>
+            </div>
+
+            <div class="pure-control-group">
+                <select name="second_country">
+                {% for country in country_names %}
+                    {% if second_country == country %}
+                        <option selected value="{{ country }}">{{ country }}</option>
+                    {% else %}
+                        <option value="{{ country }}">{{ country }}</option>
+                    {% endif %}
+                {% endfor %}
+                </select>
+            </div>
+
+            <div class="pure-control-group">
+                <select name="selected_attribute">
+                {% for attribute in attribute_names %}
+                    {% if selected_attribute == attribute %}
+                        <option selected value="{{ attribute }}">{{ attribute }}</option>
+                    {% else %}
+                        <option value="{{ attribute }}">{{ attribute }}</option>
+                    {% endif %}
+                {% endfor %}
+                </select>
+            </div>
+            <div class="pure-control-group">
+                <button type="submit" class="pure-button pure-button-primary">Submit</button>
+            </div>
+            </fieldset>
+        </form>
+    </div>
+    <div id="chart" class="chart">
+    </div>
+{% endblock %}
+
+
