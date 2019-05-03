@@ -1,24 +1,148 @@
-from flask import Flask, Response, make_response, render_template, request
-import json
+from flask import Flask, Response, make_response, render_template, request, redirect
+
 import plotly
 import plotly.plotly as py
 import plotly.graph_objs as go
 from plotly import tools
+import plotly_express as px
+
+from dash import Dash
+from dash.dependencies import Input, Output
+import dash_html_components as html
+import dash_core_components as dcc
 
 import numpy as np
 import pandas as pd
 import urllib
+import json
 
-app = Flask(__name__)
-
-# Import dataset
-data = pd.read_csv('data/gapminder.csv')
-data = data[(data.Year >= 1950)]
-country_names = sorted(list(set(data.Country)))
-attribute_names = data.columns[2:-1].values.tolist()
+from werkzeug.wsgi import DispatcherMiddleware
+from werkzeug.serving import run_simple
 
 
-@app.route('/')
+external_stylesheets = ["https://codepen.io/chriddyp/pen/bWLwgP.css",
+                    "https://unpkg.com/purecss@1.0.0/build/pure-min.css"]
+server = Flask(__name__)
+dash_app1 = Dash(__name__, server = server,
+        url_base_pathname='/gapminder_app/',
+        external_stylesheets=external_stylesheets)
+dash_app2 = Dash(__name__, server = server,
+        url_base_pathname='/tips_app/',
+        external_stylesheets=external_stylesheets)
+
+
+# Dash app1, the gapminder table and graph
+df = px.data.gapminder()
+def _generate_table(dataframe, max_rows=10):
+    return html.Table(
+        # Header
+        [html.Tr([html.Th(col) for col in dataframe.columns])] +
+        # Body
+        [html.Tr([
+            html.Td(dataframe.iloc[i][col]) for col in dataframe.columns
+        ]) for i in range(min(len(dataframe), max_rows))]
+    )
+
+dash_app1.layout = html.Div(
+    children=[
+        html.H4(children="预计寿命与GDP"),
+        _generate_table(df),
+        html.Br(),
+        dcc.Graph(id='graph-with-slider'),
+        dcc.Slider(
+            id='year-slider',
+            min=df['year'].min(),
+            max=df['year'].max(),
+            value=df['year'].min(),
+            step=None,
+            marks={str(year): str(year) for year in df['year'].unique()}
+        )
+    ]
+)
+
+@dash_app1.callback(
+    Output('graph-with-slider', 'figure'),
+    [Input('year-slider', 'value')]
+)
+def update_gapminder_figure(selected_year):
+    filtered_df = df[df.year == selected_year]
+    traces = []
+
+    for i in filtered_df.continent.unique():
+        df_by_continent = filtered_df[filtered_df['continent'] == i]
+        traces.append(go.Scattergl(
+            x=df_by_continent['gdpPercap'],
+            y=df_by_continent['lifeExp'],
+            text=df_by_continent['country'],
+            mode='markers',
+            opacity=0.7,
+            marker={
+                'size': 10,
+                'line': {'width': 0.5, 'color': 'white'}
+            },
+            name=i
+        ))
+
+    return {
+        'data': traces,
+        'layout': go.Layout(
+            xaxis={'type': 'log', 'title': 'GDP Per Capita'},
+            yaxis={'title': 'Life Expectancy', 'range': [20, 90]},
+            margin={'l': 40, 'b': 40, 't': 10, 'r': 10},
+            legend={'x': 0, 'y': 1},
+            hovermode='closest',
+            template='ggplot2+presentation'
+        )
+    }
+
+
+# Dash app2, Ployly Express in Dash with the tips dataset
+tips = px.data.tips()
+col_options = [dict(label=x, value=x) for x in tips.columns]
+dimensions = ["x", "y", "color", "facet_col", "facet_row"]
+
+dash_app2.layout = html.Div(
+    [
+        html.Div(
+            [html.H2("Plotly/Dash Chart Demo")],
+            style={
+                "text-align": "center",
+                "background-color": "rgb(136, 185, 229)",
+                "height": "70px",
+                "line-height": "70px"
+            },
+        ),
+        html.H2("Demo: Plotly Express in Dash with Tips Dataset"),
+        html.Div(
+            [
+                html.P([d + ":", dcc.Dropdown(id=d, options=col_options)])
+                for d in dimensions
+            ],
+            style={"width": "25%", "float": "left"},
+        ),
+        dcc.Graph(id="graph", style={"width": "75%", "display": "inline-block"}),
+    ]
+)
+
+@dash_app2.callback(
+    Output("graph", "figure"),
+    [Input(d, "value") for d in dimensions]
+)
+def update_tips_figure(x, y, color, facet_col, facet_row):
+    fig = px.scatter(
+        tips,
+        x=x,
+        y=y,
+        color=color,
+        facet_col=facet_col,
+        facet_row=facet_row,
+        height=700
+    )
+    fig.layout.template = 'seaborn+presentation'
+    return fig
+
+
+@server.route('/')
 def index():
     return render_template('index.html')
 
@@ -28,12 +152,12 @@ def create_line():
     xScale = np.linspace(0, 100, count)
     yScale = np.random.randn(count)
 
-    trace = go.Scatter(x=xScale, y=yScale)
+    trace = go.Scattergl(x=xScale, y=yScale)
     figure = [trace]
     return figure
 
 
-@app.route('/showLineChart')
+@server.route('/showLineChart')
 def line():
     graph = create_line()
     graphJSON = json.dumps(graph, cls=plotly.utils.PlotlyJSONEncoder)
@@ -49,15 +173,15 @@ def create_multiLine():
     y2_scale = np.random.randn(count)
 
     # Create traces
-    trace0 = go.Scatter(
+    trace0 = go.Scattergl(
         x=xScale,
         y=y0_scale
     )
-    trace1 = go.Scatter(
+    trace1 = go.Scattergl(
         x=xScale,
         y=y1_scale
     )
-    trace2 = go.Scatter(
+    trace2 = go.Scattergl(
         x=xScale,
         y=y2_scale
     )
@@ -65,7 +189,7 @@ def create_multiLine():
     return figure
 
 
-@app.route('/showMultiChart')
+@server.route('/showMultiChart')
 def multiLine():
     figure = create_multiLine()
     graphJSON = json.dumps(figure, cls=plotly.utils.PlotlyJSONEncoder)
@@ -98,7 +222,7 @@ def create_surface():
     return figure, layout
 
 
-@app.route('/plot3d')
+@server.route('/plot3d')
 def plot3D():
     figure, layout = create_surface()
     graphJSON = json.dumps(figure, cls=plotly.utils.PlotlyJSONEncoder)
@@ -142,7 +266,7 @@ def create_surface_contours():
     )
     return figure, layout
 
-@app.route('/plot3dcontours')
+@server.route('/plot3dcontours')
 def plot3DContours():
     figure, layout = create_surface_contours()
     graphJSON = json.dumps(figure, cls=plotly.utils.PlotlyJSONEncoder)
@@ -197,7 +321,7 @@ def create_sankey():
     return figure, layout
 
 
-@app.route('/sankey')
+@server.route('/sankey')
 def sankeyDiagram():
     figure, layout = create_sankey()
     graphJSON = json.dumps(figure, cls=plotly.utils.PlotlyJSONEncoder)
@@ -229,7 +353,7 @@ def create_bar_line():
         name='Household savings, percentage of household disposable income',
         orientation='h',
     )
-    trace1 = go.Scatter(
+    trace1 = go.Scattergl(
         x=y_net_worth,
         y=x_net_worth,
         mode='lines+markers',
@@ -330,7 +454,7 @@ def create_bar_line():
     fig['layout'].update(layout)
     return fig.data, fig.layout
 
-@app.route('/barandline')
+@server.route('/barandline')
 def mixBarandLine():
     figure, layout = create_bar_line()
     graphJSON = json.dumps(figure, cls=plotly.utils.PlotlyJSONEncoder)
@@ -339,6 +463,7 @@ def mixBarandLine():
     return render_template('graph.html',
                            graphJSON=graphJSON,
                            layoutJSON=layoutJSON)
+
 
 def create_sunburst():
     df1 = pd.read_csv(
@@ -413,7 +538,7 @@ def create_sunburst():
     figure = [trace1, trace2, trace3, trace4]
     return figure, layout
 
-@app.route('/sunburst')
+@server.route('/sunburst')
 def sunburst():
     figure, layout = create_sunburst()
     graphJSON = json.dumps(figure, cls=plotly.utils.PlotlyJSONEncoder)
@@ -422,6 +547,13 @@ def sunburst():
     return render_template('graph.html',
                            graphJSON=graphJSON,
                            layoutJSON=layoutJSON)
+
+
+# Import dataset
+data = pd.read_csv('data/gapminder.csv')
+data = data[(data.Year >= 1950)]
+country_names = sorted(list(set(data.Country)))
+attribute_names = data.columns[2:-1].values.tolist()
 
 # Create the main plot
 def create_gapminder_figure(first_country='China',
@@ -438,13 +570,13 @@ def create_gapminder_figure(first_country='China',
     years = list(first_country_data["Year"])
 
     # Create traces
-    trace0 = go.Scatter(
+    trace0 = go.Scattergl(
         x = years,
         y = first_country_data_attribute,
         mode = 'lines',
         name = first_country
     )
-    trace1 = go.Scatter(
+    trace1 = go.Scattergl(
         x = years,
         y = second_country_data_attribute,
         mode = 'lines',
@@ -461,7 +593,7 @@ def create_gapminder_figure(first_country='China',
     return figure, layout
 
 
-@app.route('/gapminder', methods=['GET', 'POST'])
+@server.route('/gapminder', methods=['GET', 'POST'])
 def gapminder_plot():
     first_country = "China"
     second_country = "Singapore"
@@ -485,3 +617,21 @@ def gapminder_plot():
                            first_country=first_country,
                            second_country=second_country)
 
+
+@server.route('/gapminder_app')
+def render_dashboard():
+    return redirect('/dash_gapminder')
+
+
+@server.route('/tips_app')
+def render_reports():
+    return redirect('/dash_tips')
+
+
+app = DispatcherMiddleware(server, {
+    '/dash_gapminder': dash_app1.server,
+    '/dash_tips': dash_app2.server
+})
+
+if __name__ == '__main__':
+    run_simple('127.0.0.1', 8080, app, use_reloader=True, use_debugger=True)
