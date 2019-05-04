@@ -1,4 +1,4 @@
 {
-    "python.pythonPath": "/Users/linyong/miniconda3/envs/pydata/bin/python",
-    "python.dataScience.jupyterServerURI": "http://localhost:8888/?token=e248a901f2af0d47d14e761506d557c6fb8d92f221086563"
+    "python.pythonPath": "/Users/linyong/miniconda3/envs/flasky/bin/python",
+    "python.dataScience.jupyterServerURI": "http://localhost:8888/?token=df1e70929002a9d43c7819d715018b2178ac595697d06921"
 }

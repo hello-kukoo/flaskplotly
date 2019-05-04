@@ -15,6 +15,7 @@ import numpy as np
 import pandas as pd
 import urllib
 import json
+import math
 
 from werkzeug.wsgi import DispatcherMiddleware
 from werkzeug.serving import run_simple
@@ -33,6 +34,11 @@ dash_app2 = Dash(__name__, server = server,
 
 # Dash app1, the gapminder table and graph
 df = px.data.gapminder()
+bubble_size = [math.sqrt(p / math.pi) for p in df["pop"].values]
+df['size'] = bubble_size
+sizeref = 2*max(df['size'])/(100**2)
+unique_continents = list(df["continent"].unique())
+
 def _generate_table(dataframe, max_rows=10):
     return html.Table(
         # Header
@@ -48,6 +54,14 @@ dash_app1.layout = html.Div(
         html.H4(children="预计寿命与GDP"),
         _generate_table(df),
         html.Br(),
+        dcc.Dropdown(
+            id="continent-dropdown",
+            options=[
+                {'label': i, 'value': i} for i in unique_continents
+            ],
+            value=unique_continents,
+            multi=True
+        ),
         dcc.Graph(id='graph-with-slider'),
         dcc.Slider(
             id='year-slider',
@@ -62,10 +76,12 @@ dash_app1.layout = html.Div(
 
 @dash_app1.callback(
     Output('graph-with-slider', 'figure'),
-    [Input('year-slider', 'value')]
+    [Input('year-slider', 'value'),
+     Input('continent-dropdown', 'value')]
 )
-def update_gapminder_figure(selected_year):
+def update_gapminder_figure(selected_year, selected_continent):
     filtered_df = df[df.year == selected_year]
+    filtered_df = filtered_df[df.continent.isin(selected_continent)]
     traces = []
 
     for i in filtered_df.continent.unique():
@@ -77,8 +93,11 @@ def update_gapminder_figure(selected_year):
             mode='markers',
             opacity=0.7,
             marker={
-                'size': 10,
-                'line': {'width': 0.5, 'color': 'white'}
+                'size': df[df['continent'] == i]['size'],
+                'line': {'width': 0.5, 'color': 'white'},
+                'sizeref': sizeref,
+                'symbol': 'circle',
+                'sizemode': 'area'
             },
             name=i
         ))
